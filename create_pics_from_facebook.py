@@ -9,7 +9,8 @@ import json
 import numpy as np
 import urllib2
 from StringIO import StringIO
-
+import match_faces as mf
+import base64
 CASCADE = "haarcascade_frontalface_alt.xml"
 OUTPUT_DIRECTORY = "face_root_directory/"
 # ACCESS_TOKEN = "CAACEdEose0cBAF2vljumTqc1rt0itvj9lSgzex1MU6COINiOqrf64keTsyfWA8nqZB5zpIre5hFbUiBsgsBwCZBVai0d5v89Ylod3qCVmw2yV4CRwOTpKYsTrVOqTumZAGIDocs7r3DgwmsQOrNbkQPjO7Lgv2rWKsegi2COX5vR31klDTxVuhc5iepIwiFIYQGE7pcaq0183cxwZA7s"
@@ -94,6 +95,12 @@ def download_photo_as_open_cv_image(photo_url):
     open_cv_image = convert_rgb_to_bgr(open_cv_image)
     return open_cv_image
 
+def process_image(base64string):
+    image_string = StringIO(base64.b64decode(base64string))
+    image = Image.open(image_string)
+    open_cv_image = cv.fromarray(np.array(image))[:, :]
+    open_cv_image = convert_rgb_to_bgr(open_cv_image)
+    return get_face_in_stream_photo(open_cv_image)
 
 def normalize_image_for_face_detection(img):
     gray = cv.CreateImage((img.width, img.height), 8, 1)
@@ -194,22 +201,22 @@ def get_face_in_photo(photo_url, service_id, picture_name, name, x, y):
         save_face(name, service_id, face, picture_name)
 
 
-
-def get_face_in_stream_photo(photo_url, service_id, picture_name, name, x, y):
-    photo_in_memory = download_photo_as_open_cv_image(photo_url)
-
+def get_face_in_stream_photo(photo_in_memory):
+    # photo_in_memory = download_photo_as_open_cv_image(photo_url)
+    results=[]
     # TODO: make the network call asynchronous as well with a callback function
     if photo_in_memory is None:
         return
-    if x is None and y is None:
-        # case for profile picture that isnt necessarily tagged
-        # only return a result if exactly one face is in the image
-        faces = face_detect_on_photo(photo_in_memory, None)
-        if len(faces) == 1:
-            save_face(name, service_id, faces[0], picture_name)
-        return
+
+    # case for profile picture that isnt necessarily tagged
+    # only return a result if exactly one face is in the image
+    faces = face_detect_on_photo(photo_in_memory, None)
+    if len(faces) == 1:
+        results.append(mf.predict_image(faces[0]))
+        return results
     for face in face_detect_on_photo(photo_in_memory, (x, y)):
-        save_face(name, service_id, face, picture_name)
+        results.append(mf.predict_image(faces[0]))
+    return results
 
 
 # @task

@@ -3,6 +3,10 @@ from flask import Flask, jsonify
 from flask import abort
 import create_pics_from_facebook as cf
 from flask import request
+from StringIO import StringIO
+import base64
+from PIL import Image
+
 app = Flask(__name__)
 
 
@@ -33,6 +37,7 @@ def pipe_images():
     # if not request.json or not 'data' in request.json:
     #     abort(400)
     print(request.json)
+    result =cf.process_image(request.json.get('data'))
     # cf.save_profile_photos()
     # task = {
     #     'id': tasks[-1]['id'] + 1,
@@ -41,7 +46,7 @@ def pipe_images():
     #     'done': False
     # }
     # tasks.append(task)
-    return jsonify({'success': True}), 201
+    return jsonify({'result': result}), 201
 
 
 if __name__ == '__main__':
