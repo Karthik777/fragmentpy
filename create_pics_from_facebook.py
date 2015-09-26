@@ -1,7 +1,7 @@
 __author__ = 'srlaxminaarayanan'
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
-# import cv
+import cv2.cv as cv
 import cv2
 import os
 from PIL import Image
@@ -13,7 +13,7 @@ import match_faces as mf
 import base64
 CASCADE = "haarcascade_frontalface_alt.xml"
 OUTPUT_DIRECTORY = "face_root_directory/"
-# ACCESS_TOKEN = "CAACEdEose0cBAF2vljumTqc1rt0itvj9lSgzex1MU6COINiOqrf64keTsyfWA8nqZB5zpIre5hFbUiBsgsBwCZBVai0d5v89Ylod3qCVmw2yV4CRwOTpKYsTrVOqTumZAGIDocs7r3DgwmsQOrNbkQPjO7Lgv2rWKsegi2COX5vR31klDTxVuhc5iepIwiFIYQGE7pcaq0183cxwZA7s"
+ACCESS_TOKEN = "CAACEdEose0cBADkgfmSvuKAs3w8r3CQjdudU1mjz211yEgo8hGaQbOkpwwvidmIsgzFh8TdFBsZCplhnv351dGRPUJHHvAhKZBs6urAZAWgeJOgrcUtKPP3FFJ8FZAuxM84nLwqnfWHj9XjpQ21ZCmZCNmZCRZBggtRccYLZAyQkXCJ7ZCPunpWreFPxUrG2MOiFG6oOGnl5RSK8byFxd2vmHt"
 
 IMAGE_SCALE = 2
 haar_scale = 1.2
@@ -25,47 +25,47 @@ normalized_face_dimensions = (100, 100)
 FB_BASE = "https://graph.facebook.com/"
 
 
-# def make_request(query):
-#     url = "%s%s" % (FB_BASE, query)
-#     print(url)
-#     request = urllib2.Request(url)
-#     try:
-#         response = urllib2.urlopen(request)
-#     except urllib2.HTTPError:
-#         print "Error on URL: %s" % url
-#         return []
-#     response_text = response.read()
-#     response_dict = json.loads(response_text)
-#     return response_dict.get("data", [])
-#
-#
-# def get_friend_service_ids():
-#     query = "me/friends?limit=5000&offset=0&access_token=%s" % ACCESS_TOKEN
-#     facebook_response = make_request(query)
-#     all_friends = facebook_response
-#     service_ids = [friend.get("id") for friend in all_friends]
-#     return service_ids
-#
-#
-# def get_all_photos(service_id):
-#     query = "%s/photos?type=tagged&limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
-#     return make_request(query)
-#
-#
-# def get_name(service_id):
-#     query = "%s?access_token=%s" % (service_id, ACCESS_TOKEN)
-#
-#     url = "%s%s" % (FB_BASE, query)
-#     request = urllib2.Request(url)
-#     try:
-#         response = urllib2.urlopen(request)
-#     except urllib2.HTTPError:
-#         "Error getting name for %s" % url
-#         return None
-#     response_text = response.read()
-#     response_dict = json.loads(response_text)
-#     name = response_dict.get("name")
-#     return name
+def make_request(query):
+    url = "%s%s" % (FB_BASE, query)
+    print(url)
+    request = urllib2.Request(url)
+    try:
+        response = urllib2.urlopen(request)
+    except urllib2.HTTPError:
+        print "Error on URL: %s" % url
+        return []
+    response_text = response.read()
+    response_dict = json.loads(response_text)
+    return response_dict.get("data", [])
+
+
+def get_friend_service_ids():
+    query = "me/friends?limit=5000&offset=0&access_token=%s" % ACCESS_TOKEN
+    facebook_response = make_request(query)
+    all_friends = facebook_response
+    service_ids = [friend.get("id") for friend in all_friends]
+    return service_ids
+
+
+def get_all_photos(service_id):
+    query = "%s/photos?type=tagged&limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
+    return make_request(query)
+
+
+def get_name(service_id):
+    query = "%s?access_token=%s" % (service_id, ACCESS_TOKEN)
+
+    url = "%s%s" % (FB_BASE, query)
+    request = urllib2.Request(url)
+    try:
+        response = urllib2.urlopen(request)
+    except urllib2.HTTPError:
+        "Error getting name for %s" % url
+        return None
+    response_text = response.read()
+    response_dict = json.loads(response_text)
+    name = response_dict.get("name")
+    return name
 
 
 def convert_rgb_to_bgr(open_cv_image):
@@ -144,17 +144,17 @@ def normalize_face_size(face):
 def normalize_face_histogram(face):
     face_as_array = np.asarray(face)
     equalized_face = cv2.equalizeHist(face_as_array)
-    equalized_face = cv2.fromarray(equalized_face)
+    equalized_face = cv.fromarray(equalized_face)
     return equalized_face
 
 
 def normalize_face_color(face):
-    gray_face = cv2.CreateImage((face.width, face.height), 8, 1)
+    gray_face = cv.CreateImage((face.width, face.height), 8, 1)
     if face.channels > 1:
-        cv2.CvtColor(face, gray_face, cv2.CV_BGR2GRAY)
+        cv.CvtColor(face, gray_face, cv.CV_BGR2GRAY)
     else:
         # image is already grayscale
-        gray_face = cv2.CloneMat(face[:, :])
+        gray_face = cv.CloneMat(face[:, :])
     return gray_face[:, :]
 
 
@@ -166,11 +166,11 @@ def normalize_face_for_save(face):
 
 
 def face_detect_on_photo(img, constraint_coordinate):
-    cascade = cv2.Load(CASCADE)
+    cascade = cv.Load(CASCADE)
     faces = []
 
     small_img = normalize_image_for_face_detection(img)
-    faces_coords = cv2.HaarDetectObjects(small_img, cascade, cv2.CreateMemStorage(0),
+    faces_coords = cv.HaarDetectObjects(small_img, cascade, cv.CreateMemStorage(0),
                                         haar_scale, min_neighbors, haar_flags, min_size)
     for ((x, y, w, h), n) in faces_coords:
         if constraint_coordinate is not None and not _is_in_bounds((x, y, w, h), constraint_coordinate, small_img):
@@ -220,49 +220,49 @@ def get_face_in_stream_photo(photo_in_memory):
 
 
 # @task
-# def get_tagged_photos(service_id, name):
-#     all_photos = get_all_photos(service_id)
-#     picture_count = 0
-#     for photo in all_photos:
-#         photo_url = photo.get("source")
-#         tag_list = photo.get("tags", {}).get("data")
-#         if tag_list is None:
-#             continue
-#         for tag in tag_list:
-#             if tag.get("name") == name:
-#                 # X and Y are the percentages from top and left
-#                 # need to
-#                 x = float(tag.get("x", 100))
-#                 y = float(tag.get("y", 100))
-#                 if 100 not in (x, y):
-#                     get_face_in_photo(photo_url, service_id, picture_count, name, x, y)  # TODO: apply asynchronously
-#                     picture_count += 1
-#
-#
-# def get_profile_picture_album_id(service_id):
-#     query = "%s/albums?limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
-#     all_albums = make_request(query)
-#     album_id = None
-#     for album in all_albums:
-#         if album.get("name") == "Profile Pictures":
-#             album_id = album.get("id")
-#             break
-#     return album_id
+def get_tagged_photos(service_id, name):
+    all_photos = get_all_photos(service_id)
+    picture_count = 0
+    for photo in all_photos:
+        photo_url = photo.get("source")
+        tag_list = photo.get("tags", {}).get("data")
+        if tag_list is None:
+            continue
+        for tag in tag_list:
+            if tag.get("name") == name:
+                # X and Y are the percentages from top and left
+                # need to
+                x = float(tag.get("x", 100))
+                y = float(tag.get("y", 100))
+                if 100 not in (x, y):
+                    get_face_in_photo(photo_url, service_id, picture_count, name, x, y)  # TODO: apply asynchronously
+                    picture_count += 1
+
+
+def get_profile_picture_album_id(service_id):
+    query = "%s/albums?limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
+    all_albums = make_request(query)
+    album_id = None
+    for album in all_albums:
+        if album.get("name") == "Profile Pictures":
+            album_id = album.get("id")
+            break
+    return album_id
 
 
 #  @task
-# def get_profile_photos(service_id, name):
-#     album_id = get_profile_picture_album_id(service_id)
-#     if album_id is None:
-#         return
-#     query = "%s/photos?limit=5000&access_token=%s" % (album_id, ACCESS_TOKEN)
-#     all_photos = make_request(query)
-#     picture_count = 0
-#     for photo in all_photos:
-#         photo_url = photo.get("source")
-#         picture_name = "profile_%s" % picture_count
-#         get_face_in_photo(photo_url, service_id, picture_name, name, None, None)
-#         picture_count += 1
+def get_profile_photos(service_id, name):
+    album_id = get_profile_picture_album_id(service_id)
+    if album_id is None:
+        return
+    query = "%s/photos?limit=5000&access_token=%s" % (album_id, ACCESS_TOKEN)
+    all_photos = make_request(query)
+    picture_count = 0
+    for photo in all_photos:
+        photo_url = photo.get("source")
+        picture_name = "profile_%s" % picture_count
+        get_face_in_photo(photo_url, service_id, picture_name, name, None, None)
+        picture_count += 1
 
 
 def save_profile_photos(imageQuery, name):
@@ -305,7 +305,7 @@ def save_face(name, service_id, face, picture_name):
         # TODO: Use django smart_bytes to save the image here
     print "Saving: %s" % full_path
 
-#
+# #
 # if __name__ == "__main__":
 #     service_ids = get_friend_service_ids()
 #     if not os.path.exists(OUTPUT_DIRECTORY):
