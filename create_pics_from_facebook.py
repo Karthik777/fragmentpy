@@ -1,7 +1,7 @@
 __author__ = 'srlaxminaarayanan'
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
-import cv
+# import cv
 import cv2
 import os
 from PIL import Image
@@ -137,17 +137,17 @@ def normalize_face_size(face):
 def normalize_face_histogram(face):
     face_as_array = np.asarray(face)
     equalized_face = cv2.equalizeHist(face_as_array)
-    equalized_face = cv.fromarray(equalized_face)
+    equalized_face = cv2.fromarray(equalized_face)
     return equalized_face
 
 
 def normalize_face_color(face):
-    gray_face = cv.CreateImage((face.width, face.height), 8, 1)
+    gray_face = cv2.CreateImage((face.width, face.height), 8, 1)
     if face.channels > 1:
-        cv.CvtColor(face, gray_face, cv.CV_BGR2GRAY)
+        cv2.CvtColor(face, gray_face, cv2.CV_BGR2GRAY)
     else:
         # image is already grayscale
-        gray_face = cv.CloneMat(face[:, :])
+        gray_face = cv2.CloneMat(face[:, :])
     return gray_face[:, :]
 
 
@@ -159,11 +159,11 @@ def normalize_face_for_save(face):
 
 
 def face_detect_on_photo(img, constraint_coordinate):
-    cascade = cv.Load(CASCADE)
+    cascade = cv2.Load(CASCADE)
     faces = []
 
     small_img = normalize_image_for_face_detection(img)
-    faces_coords = cv.HaarDetectObjects(small_img, cascade, cv.CreateMemStorage(0),
+    faces_coords = cv2.HaarDetectObjects(small_img, cascade, cv2.CreateMemStorage(0),
                                         haar_scale, min_neighbors, haar_flags, min_size)
     for ((x, y, w, h), n) in faces_coords:
         if constraint_coordinate is not None and not _is_in_bounds((x, y, w, h), constraint_coordinate, small_img):
@@ -178,6 +178,24 @@ def face_detect_on_photo(img, constraint_coordinate):
 
 #  @task
 def get_face_in_photo(photo_url, service_id, picture_name, name, x, y):
+    photo_in_memory = download_photo_as_open_cv_image(photo_url)
+
+    # TODO: make the network call asynchronous as well with a callback function
+    if photo_in_memory is None:
+        return
+    if x is None and y is None:
+        # case for profile picture that isnt necessarily tagged
+        # only return a result if exactly one face is in the image
+        faces = face_detect_on_photo(photo_in_memory, None)
+        if len(faces) == 1:
+            save_face(name, service_id, faces[0], picture_name)
+        return
+    for face in face_detect_on_photo(photo_in_memory, (x, y)):
+        save_face(name, service_id, face, picture_name)
+
+
+
+def get_face_in_stream_photo(photo_url, service_id, picture_name, name, x, y):
     photo_in_memory = download_photo_as_open_cv_image(photo_url)
 
     # TODO: make the network call asynchronous as well with a callback function

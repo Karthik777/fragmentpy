@@ -1,293 +1,261 @@
-__author__ = 'srlaxminaarayanan'
+import os
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
-import cv
+import cv2.cv as cv
 import cv2
-import os
-from PIL import Image
-import json
+import create_pics_from_facebook as cf
 import numpy as np
-import urllib2
-from StringIO import StringIO
 
 CASCADE = "haarcascade_frontalface_alt.xml"
-OUTPUT_DIRECTORY = "face_root_directory/"
-ACCESS_TOKEN = "CAACEdEose0cBAF2vljumTqc1rt0itvj9lSgzex1MU6COINiOqrf64keTsyfWA8nqZB5zpIre5hFbUiBsgsBwCZBVai0d5v89Ylod3qCVmw2yV4CRwOTpKYsTrVOqTumZAGIDocs7r3DgwmsQOrNbkQPjO7Lgv2rWKsegi2COX5vR31klDTxVuhc5iepIwiFIYQGE7pcaq0183cxwZA7s"
+face_dir = "face_root_directory/"
 
+min_size = (20, 20)
 IMAGE_SCALE = 2
 haar_scale = 1.2
 min_neighbors = 3
-min_size = (20, 20)
 haar_flags = 0
-normalized_face_dimensions = (100, 100)
-
-FB_BASE = "https://graph.facebook.com/"
-
-
-# def make_request(query):
-#     url = "%s%s" % (FB_BASE, query)
-#     print(url)
-#     request = urllib2.Request(url)
-#     try:
-#         response = urllib2.urlopen(request)
-#     except urllib2.HTTPError:
-#         print "Error on URL: %s" % url
-#         return []
-#     response_text = response.read()
-#     response_dict = json.loads(response_text)
-#     return response_dict.get("data", [])
-#
-#
-# def get_friend_service_ids():
-#     query = "me/friends?limit=5000&offset=0&access_token=%s" % ACCESS_TOKEN
-#     facebook_response = make_request(query)
-#     all_friends = facebook_response
-#     service_ids = [friend.get("id") for friend in all_friends]
-#     return service_ids
-#
-#
-# def get_all_photos(service_id):
-#     query = "%s/photos?type=tagged&limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
-#     return make_request(query)
-#
-#
-# def get_name(service_id):
-#     query = "%s?access_token=%s" % (service_id, ACCESS_TOKEN)
-#
-#     url = "%s%s" % (FB_BASE, query)
-#     request = urllib2.Request(url)
-#     try:
-#         response = urllib2.urlopen(request)
-#     except urllib2.HTTPError:
-#         "Error getting name for %s" % url
-#         return None
-#     response_text = response.read()
-#     response_dict = json.loads(response_text)
-#     name = response_dict.get("name")
-#     return name
+label_dict = {}
+variable_faces = []
+recognizers = []
+import random
 
 
-def convert_rgb_to_bgr(open_cv_image):
-    try:
-        new_image = cv.CreateImage((open_cv_image.width, open_cv_image.height), cv.IPL_DEPTH_8U, open_cv_image.channels)
-        cv.CvtColor(open_cv_image, new_image, cv.CV_RGB2BGR)
-    except:
-        print "Error converting image to BGR"
-        return None
-    return new_image
+def images_from_target_person1(person, max_pics, recognizers):
+    id_counter = 1
+    for recognizer in recognizers:
+        label_dict[recognizer][id_counter] = person
+    picture_dir = face_dir + person + "/"
+    all_pictures = os.listdir(picture_dir)
+    variable_pic = random.choice(all_pictures)
+    variable_faces.append(picture_dir + variable_pic)
+    all_pictures.remove(variable_pic)
+    random.shuffle(all_pictures)
+    all_pictures = all_pictures[:max_pics]
 
-
-def download_photo_as_open_cv_image(photo_url):
-    try:
-        img = urllib2.urlopen(photo_url).read()
-    except urllib2.HTTPError:
-        # possible case of 404 on image
-        print "Error fetching image: %s" % photo_url
-        return None
-    img = StringIO(img)
-    pil_image = Image.open(img)
-    try:
-        open_cv_image = cv.fromarray(np.array(pil_image))[:, :]
-    except TypeError:
-        print "unsupported image type"
-        return None
-    open_cv_image = convert_rgb_to_bgr(open_cv_image)
-    return open_cv_image
-
-
-def normalize_image_for_face_detection(img):
-    gray = cv.CreateImage((img.width, img.height), 8, 1)
-    small_img = cv.CreateImage((cv.Round(img.width / IMAGE_SCALE),
-                   cv.Round(img.height / IMAGE_SCALE)), 8, 1)
-    if img.channels > 1:
-        cv.CvtColor(img, gray, cv.CV_BGR2GRAY)
-    else:
-        # image is already grayscale
-        gray = cv.CloneMat(img[:, :])
-    cv.Resize(gray, small_img, cv.CV_INTER_LINEAR)
-    cv.EqualizeHist(small_img, small_img)
-    return small_img
-
-
-def _is_in_bounds(region_of_interest, constraint_coordinate, open_cv_image):
-    '''
-    Region of interest: (x, y, w, h)
-    Constraint Coordinate: x and y as a percent from left and top
-    '''
-    constraint_coordinate = (constraint_coordinate[0] / 100.0, constraint_coordinate[1] / 100.0)
-    translated_coordinate = (open_cv_image.width * constraint_coordinate[0], open_cv_image.height * constraint_coordinate[1])
-    x_min = region_of_interest[0]
-    x_max = region_of_interest[2] + x_min
-    y_min = region_of_interest[1]
-    y_max = region_of_interest[3] + y_min
-
-    if x_min <= translated_coordinate[0] <= x_max and y_min <= translated_coordinate[1] <= y_max:
-        return True
-    return False
-
-
-def normalize_face_size(face):
-    normalized_face_dimensions = (100, 100)
-    face_as_array = np.asarray(face)
-    resized_face = cv2.resize(face_as_array, normalized_face_dimensions)
-    resized_face = cv.fromarray(resized_face)
-    return resized_face
-
-
-def normalize_face_histogram(face):
-    face_as_array = np.asarray(face)
-    equalized_face = cv2.equalizeHist(face_as_array)
-    equalized_face = cv.fromarray(equalized_face)
-    return equalized_face
-
-
-def normalize_face_color(face):
-    gray_face = cv.CreateImage((face.width, face.height), 8, 1)
-    if face.channels > 1:
-        cv.CvtColor(face, gray_face, cv.CV_BGR2GRAY)
-    else:
-        # image is already grayscale
-        gray_face = cv.CloneMat(face[:, :])
-    return gray_face[:, :]
-
-
-def normalize_face_for_save(face):
-    face = normalize_face_size(face)
-    face = normalize_face_color(face)
-    face = normalize_face_histogram(face)
-    return face
-
-
-def face_detect_on_photo(img, constraint_coordinate):
-    cascade = cv.Load(CASCADE)
-    faces = []
-
-    small_img = normalize_image_for_face_detection(img)
-    faces_coords = cv.HaarDetectObjects(small_img, cascade, cv.CreateMemStorage(0),
-                                        haar_scale, min_neighbors, haar_flags, min_size)
-    for ((x, y, w, h), n) in faces_coords:
-        if constraint_coordinate is not None and not _is_in_bounds((x, y, w, h), constraint_coordinate, small_img):
+    for picture_name in all_pictures:
+        full_path = picture_dir + picture_name
+        try:
+            face = cv.LoadImage(full_path, cv2.IMREAD_GRAYSCALE)
+        except IOError:
             continue
-        pt1 = (int(x * IMAGE_SCALE), int(y * IMAGE_SCALE))
-        pt2 = (int((x + w) * IMAGE_SCALE), int((y + h) * IMAGE_SCALE))
-        face = img[pt1[1]:pt2[1], pt1[0]: pt2[0]]
-        face = normalize_face_for_save(face)
-        faces.append(face)
-    return faces
+        yield face[:, :], full_path
+    id_counter += 1
+
+def images_from_target_person(person, max_pics, recognizers):
+    id_counter = 1
+    for recognizer in recognizers:
+        label_dict[recognizer][id_counter] = person
+    picture_dir = face_dir + person + "/"
+    all_pictures = os.listdir(picture_dir)
+    variable_pic = random.choice(all_pictures)
+    variable_faces.append(picture_dir + variable_pic)
+    all_pictures.remove(variable_pic)
+    random.shuffle(all_pictures)
+    all_pictures = all_pictures[:max_pics]
+
+    for picture_name in all_pictures:
+        full_path = picture_dir + picture_name
+        try:
+            face = cv.LoadImage(full_path, cv2.IMREAD_GRAYSCALE)
+        except IOError:
+            continue
+        yield face[:, :], id_counter
+    id_counter += 1
 
 
-#  @task
-def get_face_in_photo(photo_url, service_id, picture_name, name, x, y):
-    photo_in_memory = download_photo_as_open_cv_image(photo_url)
-
-    # TODO: make the network call asynchronous as well with a callback function
-    if photo_in_memory is None:
-        return
-    if x is None and y is None:
-        # case for profile picture that isnt necessarily tagged
-        # only return a result if exactly one face is in the image
-        faces = face_detect_on_photo(photo_in_memory, None)
-        if len(faces) == 1:
-            save_face(name, service_id, faces[0], picture_name)
-        return
-    for face in face_detect_on_photo(photo_in_memory, (x, y)):
-        save_face(name, service_id, face, picture_name)
-
-
-# @task
-# def get_tagged_photos(service_id, name):
-#     all_photos = get_all_photos(service_id)
-#     picture_count = 0
-#     for photo in all_photos:
-#         photo_url = photo.get("source")
-#         tag_list = photo.get("tags", {}).get("data")
-#         if tag_list is None:
-#             continue
-#         for tag in tag_list:
-#             if tag.get("name") == name:
-#                 # X and Y are the percentages from top and left
-#                 # need to
-#                 x = float(tag.get("x", 100))
-#                 y = float(tag.get("y", 100))
-#                 if 100 not in (x, y):
-#                     get_face_in_photo(photo_url, service_id, picture_count, name, x, y)  # TODO: apply asynchronously
-#                     picture_count += 1
-#
-#
-# def get_profile_picture_album_id(service_id):
-#     query = "%s/albums?limit=5000&access_token=%s" % (service_id, ACCESS_TOKEN)
-#     all_albums = make_request(query)
-#     album_id = None
-#     for album in all_albums:
-#         if album.get("name") == "Profile Pictures":
-#             album_id = album.get("id")
-#             break
-#     return album_id
+def images_from_random_people(all_people, max_pics, recognizer):
+    num_to_train = 8
+    id_counter = 2
+    random.shuffle(all_people)
+    all_people = all_people
+    num_training_added = 0
+    for person in all_people:
+        label_dict[recognizer][id_counter] = person
+        if "DS_STORE" in face_dir + person:
+            continue
+        try:
+            all_pictures = os.listdir(face_dir + person + "/")
+        except:
+            continue
+        if len(all_pictures) < 20:
+            continue
+        random.shuffle(all_pictures)
+        all_pictures = all_pictures[:max_pics]
+        for picture_name in all_pictures:
+            picture_dir = face_dir + person + "/"
+            full_path = picture_dir + picture_name
+            try:
+                face = cv.LoadImage(full_path, cv2.IMREAD_GRAYSCALE)
+            except IOError:
+                continue
+            yield face[:, :], id_counter
+        num_training_added += 1
+        if num_training_added > num_to_train:
+            break
+        id_counter += 1
 
 
-#  @task
-# def get_profile_photos(service_id, name):
-#     album_id = get_profile_picture_album_id(service_id)
-#     if album_id is None:
-#         return
-#     query = "%s/photos?limit=5000&access_token=%s" % (album_id, ACCESS_TOKEN)
-#     all_photos = make_request(query)
-#     picture_count = 0
-#     for photo in all_photos:
-#         photo_url = photo.get("source")
-#         picture_name = "profile_%s" % picture_count
-#         get_face_in_photo(photo_url, service_id, picture_name, name, None, None)
-#         picture_count += 1
+def train_recognizers(recognizers):
+    for recognizer in recognizers:
+        label_dict[recognizer] = {}
+    images = []
+    labels = []
+    num_faces = 0
+    max_pics = 50
+
+    all_people = os.listdir(face_dir)
+    person = random.choice(all_people)
+    all_people.remove(person)
+    for face, id_counter in images_from_target_person(person, max_pics, recognizers):
+        images.append(np.asarray(face))
+        labels.append(id_counter)
+
+    for recognizer in recognizers:
+        image_copy = list(images)
+        label_copy = list(labels)
+        for face, id_counter in images_from_random_people(all_people, max_pics, recognizer):
+            image_copy.append(np.asarray(face))
+            label_copy.append(id_counter)
+            num_faces += 1
+
+        image_array = np.asarray(image_copy)
+        label_array = np.asarray(label_copy)
+        recognizer.train(image_array, label_array)
+    return recognizers
 
 
-def save_profile_photos(imageQuery, name):
-    # album_id = get_profile_picture_album_id(service_id)
-    # if album_id is None:
-    #     return
-    # query = "%s/photos?limit=5000&access_token=%s" % (album_id, ACCESS_TOKEN)
-    all_photos = json.loads(imageQuery)
-    picture_count = 0
-    for photo in all_photos:
-        photo_url = photo.get("source")
-        picture_name = "profile_%s" % picture_count
-        get_face_in_photo(photo_url, None, picture_name, name, None, None)
-        picture_count += 1
+def iterate_over_random_people():
+    num_people = 5
+    people_names = os.listdir(face_dir)
+    random.shuffle(people_names)
+    people_to_use = people_names[:num_people]
+    # variable faces is a full image path
+    for person in people_to_use:
+        picture_dir = face_dir + person + "/"
+        try:
+            all_pictures = os.listdir(picture_dir)
+        except:
+            continue
+        if len(all_pictures) == 0:
+            continue
+        some_picture = random.choice(all_pictures)
+        full_path = picture_dir + some_picture
+        variable_faces.append(full_path)
+    for filename in variable_faces:
+        try:
+            image = cv.LoadImage(filename, cv2.IMREAD_GRAYSCALE)
+        except IOError:
+            continue
+        yield image[:, :], filename
 
 
+def directory_name_to_display_name(path):
+    path = path.replace(face_dir, "")
+    path = path.split("/")[0]
+    path = "_".join(path.split("_")[:2])
+    return path
 
-def _create_folder_name(name, service_id):
-    if service_id is None:
-       service_id=""
-    split_name = name.split(" ")
-    first = split_name[0]
-    last = split_name[len(split_name) - 1]
-    folder_name = "%s_%s_%s" % (last, first, service_id)
-    return folder_name
-
-
-def save_face(name, service_id, face, picture_name):
-    folder_name = _create_folder_name(name, service_id)
-    if not os.path.exists(OUTPUT_DIRECTORY + folder_name):
-        os.makedirs(OUTPUT_DIRECTORY + folder_name)
-    filename = "%s.jpg" % picture_name
-    full_path = OUTPUT_DIRECTORY + folder_name + "/" + filename
-    try:
-        cv2.imwrite(full_path, np.asarray(face))
-    except UnicodeEncodeError:
-        print "Did not save picture because of unicode exception"
-        # TODO: Use django smart_bytes to save the image here
-    print "Saving: %s" % full_path
-
-#
-# if __name__ == "__main__":
-#     service_ids = get_friend_service_ids()
-#     if not os.path.exists(OUTPUT_DIRECTORY):
-#         os.makedirs(OUTPUT_DIRECTORY)
-#     for service_id in service_ids:
-#         name = get_name(service_id)
-#         if name is None:
-#             continue
-#         get_profile_photos(service_id, name)  # TODO: apply asynchronously
-#         get_tagged_photos(service_id, name)  # TODO: apply_asyncchronously
+def execute_train_recognizers():
+    variable_faces = []
+    num_recognizers = 3
+    for j in xrange(num_recognizers):
+        lbh_recognizer = cv2.createLBPHFaceRecognizer()
+        recognizers.append(lbh_recognizer)
+        recognizers = train_recognizers(recognizers)
 
 
+def predict_image(image):
+    return
+
+if __name__ == '__main__':
+    total_matches = 0
+    false_positives = 0
+    misses = 0
+    num_iterations = 300
+    matches_this_iteration = 0
+    for j in xrange(num_iterations):
+        try:
+            variable_faces = []
+
+            num_recognizers = 3
+            recognizers = []
+            for j in xrange(num_recognizers):
+                lbh_recognizer = cv2.createLBPHFaceRecognizer()
+                recognizers.append(lbh_recognizer)
+            recognizers = train_recognizers(recognizers)
+
+            all_people = os.listdir(face_dir)
+
+            person= all_people[3]
+            test_people = list(images_from_target_person1(person,200,recognizers))
+            # target person is the established individual that we're trying to
+            # match against
+            target_person = test_people[0][1]
+            target_path = target_person
+            target_person = directory_name_to_display_name(target_person)
+
+            # For this test, the known person is always the first person in the list,
+            # so we match based on the idea that the correct estimation is when the algorithm picks the first element
+            # first_item = True
+
+            false_positives_this_iteration = 0
+            average_confidence = 0
+            CONFIDENCE_THRESHOLD = 100.0
+            for face, actual_name in test_people:
+                # for this test, we know that test_people[0][0] is the face of
+                # the target person.  If this algorithm works, then it will
+                # validate that assertion
+                path = actual_name
+                actual_name = directory_name_to_display_name(actual_name)
+                labels = []
+                for lbh_recognizer in recognizers:
+                    [label, confidence] = lbh_recognizer.predict(np.asarray(face))
+                    average_confidence += confidence
+                    labels.append(label)
+                average_confidence /= num_recognizers
+                # this is just asserting that an ID of 1 has been found for
+                # every recognizer
+                if sum(labels) == num_recognizers and average_confidence < CONFIDENCE_THRESHOLD:
+                    # if first_item:
+                        matches_this_iteration += 1
+                        print "SUCCESSFUL MATCH",
+                        print "%s looks like the target, %s.  Confidence %s" % (path, target_path, average_confidence)
+                else:
+                    # this case is reached sometimes since we're using
+                    # random data and I didn't protect against that
+                    # duplication
+                    if actual_name == target_person:
+                        total_matches += 1
+                        # print "DIDNT MATCH",
+                    else:
+                        false_positives_this_iteration += 1
+                        print "FALSE POSITIVE",
+
+                # else:
+                #     # A miss is okay since we err on the side of uncertainty
+                #     # rather than create a false positive
+                #     if first_item:
+                #         misses += 1
+                # first_item = False
+
+            # this IF statement exists to catch the latter case below
+            # if sum([false_positives_this_iteration, matches_this_iteration]) == 1:
+            #     false_positives += false_positives_this_iteration
+            #     total_matches += matches_this_iteration
+            # elif false_positives_this_iteration >= 1 and matches_this_iteration == 1:
+            #     # TODO: this case means that multiple people were matches to
+            #     # the same person.  In this case, you can just use the one with
+            #     # greater confidence and this generally produces the correct
+            #     # results
+            #     total_matches += 1
+        except:
+            continue
+    # print "Total matches: %s" % total_matches
+    # print "False positives: %s" % false_positives
+    # print "Misses: %s" % misses
+    print(matches_this_iteration)
+
+    # all_people = os.listdir(face_dir)
+    # person = random.choice(all_people)
+    #
+    # test_people = list(images_from_target_person1(person, 50, recognizers))
