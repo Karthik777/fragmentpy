@@ -9,6 +9,7 @@ import json
 import numpy as np
 import urllib2
 from StringIO import StringIO
+from io import BytesIO
 import match_faces as mf
 import base64
 CASCADE = "haarcascade_frontalface_alt.xml"
@@ -96,7 +97,7 @@ def download_photo_as_open_cv_image(photo_url):
     return open_cv_image
 
 def process_image(base64string):
-    image_string = StringIO(base64.b64decode(base64string))
+    image_string = BytesIO(base64.b64decode(base64string))
     image = Image.open(image_string)
     open_cv_image = cv.fromarray(np.array(image))[:, :]
     open_cv_image = convert_rgb_to_bgr(open_cv_image)
@@ -280,7 +281,42 @@ def save_profile_photos(imageQuery, name):
     get_face_in_photo(photo_url, None, picture_name, name, None, None)
     picture_count += 1
 
+def fb_load_photos(imageurl,name):
+    all_photos = imageurl
+    picture_count = 0
+    # for photo in all_photos:
+    print(all_photos)
+    photo_url = all_photos
+    picture_name = "profile_%s" % picture_count
+    get_face_in_photo1(photo_url, None, picture_name, name, None, None)
+    picture_count += 1
 
+def get_face_in_photo1(photo_url, service_id, picture_name, name, x, y):
+    photo_in_memory = download_photo_as_open_cv_image1(photo_url)
+
+    # TODO: make the network call asynchronous as well with a callback function
+    if photo_in_memory is None:
+        return
+    if x is None and y is None:
+        # case for profile picture that isnt necessarily tagged
+        # only return a result if exactly one face is in the image
+        faces = face_detect_on_photo(photo_in_memory, None)
+        if len(faces) == 1:
+            save_face(name, service_id, faces[0], picture_name)
+        return
+    for face in face_detect_on_photo(photo_in_memory, (x, y)):
+        save_face(name, service_id, face, picture_name)
+
+def download_photo_as_open_cv_image1(photo_url):
+
+    pil_image = Image.open(photo_url)
+    try:
+        open_cv_image = cv.fromarray(np.array(pil_image))[:, :]
+    except TypeError:
+        print "unsupported image type"
+        return None
+    open_cv_image = convert_rgb_to_bgr(open_cv_image)
+    return open_cv_image
 
 def _create_folder_name(name, service_id):
     if service_id is None:
@@ -307,14 +343,20 @@ def save_face(name, service_id, face, picture_name):
 
 # #
 # if __name__ == "__main__":
-#     service_ids = get_friend_service_ids()
-#     if not os.path.exists(OUTPUT_DIRECTORY):
-#         os.makedirs(OUTPUT_DIRECTORY)
-#     for service_id in service_ids:
-#         name = get_name(service_id)
-#         if name is None:
-#             continue
-#         get_profile_photos(service_id, name)  # TODO: apply asynchronously
-#         get_tagged_photos(service_id, name)  # TODO: apply_asyncchronously
+#     # service_ids = get_friend_service_ids()
+#     # if not os.path.exists(OUTPUT_DIRECTORY):
+#     #     os.makedirs(OUTPUT_DIRECTORY)
+#     # for service_id in service_ids:
+#     #     name = get_name(service_id)
+#     #     if name is None:
+#     #         fcontinue
+#     #     get_profile_photos(service_id, name)  # TODO: apply asynchronously
+#     #     get_tagged_photos(service_id, name)  # TODO: apply_asyncchronously
+#     rootdir = 'docs/'
+#
+#     for subdir, dirs, files in os.walk(rootdir):
+#         for file in files:
+#             if not file == '.DS_Store':
+#              fb_load_photos(os.path.join(subdir, file),subdir)
 
 
